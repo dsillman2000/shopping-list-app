@@ -287,7 +287,7 @@ async function checkRateLimit(env: Env, ipAddress: string): Promise<{ limited: b
  */
 async function recordFailedAttempt(env: Env, ipAddress: string): Promise<string | null> {
   const MAX_ATTEMPTS = 5;
-  const LOCKOUT_DURATION = 1 * 60; // 1 hour in seconds
+  const LOCKOUT_DURATION = 60 * 60; // 60 minutes in seconds
   
   try {
     // Check if this IP already has attempts recorded
