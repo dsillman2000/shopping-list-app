@@ -1,0 +1,9 @@
+name = "shopping-list-app"
+compatibility_date = "2023-12-01"
+pages_build_output_dir = "dist"
+
+# D1 Database configuration for Workers and Pages Functions
+[[d1_databases]]
+binding = "DB"
+database_name = "shopping_list_db"
+database_id = "66075a0b-e80b-4a74-a2a1-55f7f93704d0"
