@@ -41,7 +41,7 @@ const CDC_LAST_SEQUENCE_NUMBER_KEY = 'shopping-list-items-cdc-last-sequence-numb
 
 // Live interaction timer constants
 const AUTO_REFRESH_INTERVAL = 60000; // 60 seconds
-const DEBOUNCE_INTERVAL = 2000; // 2 seconds
+const DEBOUNCE_INTERVAL = 8000; // 8 seconds
 const SYNC_SIMULATION_TIME = 1500; // 1.5 seconds to simulate sync operation
 const DEBOUNCE_SECONDS = Math.ceil(DEBOUNCE_INTERVAL / 1000); // Seconds value for countdown
 
