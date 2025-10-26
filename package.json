@@ -15,10 +15,8 @@
     "d1:local:rate-limit": "wrangler d1 execute shopping_list_db --file=./sql/create_rate_limit_table.sql",
     "d1:remote:rate-limit": "wrangler d1 execute shopping_list_db --file=./sql/create_rate_limit_table.sql --remote",
     "d1:local:create": "wrangler d1 create shopping_list_db",
-    "d1:local:execute": "wrangler d1 execute shopping_list_db --file=./sql/migration.sql",
     "d1:local:migrate": "wrangler d1 execute shopping_list_db --file=./sql/migration.sql",
     "d1:remote:create": "wrangler d1 create shopping_list_db --remote",
-    "d1:remote:execute": "wrangler d1 execute shopping_list_db --file=./sql/migration.sql --remote",
     "d1:remote:migrate": "wrangler d1 execute shopping_list_db --file=./sql/migration.sql --remote",
     "pages:dev": "wrangler pages dev --compatibility-date=2023-10-30 dist",
     "pages:deploy": "vite build --mode production && wrangler pages deploy dist"
