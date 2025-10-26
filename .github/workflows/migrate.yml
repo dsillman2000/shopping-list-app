@@ -1,19 +1,17 @@
-name: Deploy
+name: Migrate
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  migrate:
     runs-on: ubuntu-latest
-    name: Deploy
+    name: Migrate
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy
+      - name: Migrate
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: "4.45.0"
-          command: "pnpm run pages:deploy"
+          command: "pnpm run d1:remote:migrate"
