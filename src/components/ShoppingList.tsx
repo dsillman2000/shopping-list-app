@@ -458,9 +458,13 @@ const ShoppingList: React.FC = () => {
         console.log('Page is hidden - stopping polling and sync timers');
         stopPolling();
         
-        // Don't cancel sync timers if we have pending changes
-        // This ensures changes are still synced even when tab is not active
-        if (cdcChanges.length === 0 && syncTimerRef.current) {
+        // If we have pending changes, send them to the backend immediately
+        if (cdcChanges.length > 0) {
+          console.log('Page is hidden - sending pending changes to backend immediately');
+          syncNow(); // Call syncNow to immediately sync pending changes
+        }
+        // Clear any existing sync timer regardless
+        else if (syncTimerRef.current) {
           clearTimeout(syncTimerRef.current);
           syncTimerRef.current = null;
         }
