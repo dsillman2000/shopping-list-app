@@ -8,6 +8,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 
 export interface Env {
   DB: D1Database;
+  JWT_SECRET?: string;
 }
 
 export interface ShoppingItem {
@@ -31,6 +32,22 @@ export default {
     if (request.method === 'OPTIONS') {
       return handleCORS(request);
     }
+
+    // Authentication endpoint
+    if (path === '/api/auth/verify' || path === '/auth/verify') {
+      if (request.method === 'POST') {
+        return await verifyPassword(request, env);
+      }
+    }
+
+    // Authenticate protected routes
+    const authHeader = request.headers.get('Authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null;
+    const isAuthenticated = await verifyJWT(token, env);
+
+    if (!isAuthenticated && (path.startsWith('/api/changes') || path.startsWith('/changes'))) {
+      return corsResponse({ error: 'Unauthorized' }, 401, request);
+    }
     
     // API routes for CDC operations - support both /api/changes and /changes paths
     if (path === '/api/changes' || path === '/changes') {
@@ -46,13 +63,6 @@ export default {
       }
     }
 
-    // Authentication endpoint
-    if (path === '/api/auth/verify' || path === '/auth/verify') {
-      if (request.method === 'POST') {
-        return await verifyPassword(request, env);
-      }
-    }
-    
     // Default response for unmatched routes
     return new Response('Not Found', { status: 404 });
   },
@@ -67,7 +77,7 @@ function handleCORS(request?: Request): Response {
     headers: {
       'Access-Control-Allow-Origin': origin, // Use the actual origin or * as fallback
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
       'Access-Control-Allow-Credentials': 'true', // Allow credentials
     },
@@ -186,6 +196,7 @@ function corsResponse(body: any, status = 200, request?: Request): Response {
   const headers = {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json',
   };
   
@@ -403,8 +414,12 @@ async function verifyPassword(request: Request, env: Env): Promise<Response> {
       // Successful login - reset failed attempts
       await resetFailedAttempts(env, ipAddress);
       
+      // Generate a JWT token
+      const token = await generateJWT(env);
+      
       return corsResponse({
-        valid: true
+        valid: true,
+        token
       }, 200, request);
     } else {
       // Failed login - record the attempt
@@ -421,5 +436,116 @@ async function verifyPassword(request: Request, env: Env): Promise<Response> {
   } catch (error) {
     console.error('Error verifying password:', error);
     return corsResponse({ error: 'Failed to verify password', details: String(error) }, 500, request);
+  }
+}
+
+/**
+ * Generate a simple JWT-like token using HMAC-SHA256
+ * In a real production app, use a proper JWT library, but for CF Workers 
+ * we can use the Web Crypto API directly for a lightweight version.
+ */
+async function generateJWT(env: Env): Promise<string> {
+  const secret = env.JWT_SECRET;
+  if (!secret) {
+    throw new Error('JWT_SECRET environment variable is not set');
+  }
+  const encoder = new TextEncoder();
+  
+  // Payload: { iat: <timestamp>, exp: <timestamp + 24h> }
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iat: now,
+    exp: now + (24 * 60 * 60) // 24 hours
+  };
+  
+  const header = { alg: 'HS256', typ: 'JWT' };
+  
+  const base64Url = (obj: any) => {
+    return btoa(JSON.stringify(obj))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+  };
+  
+  const headerBase64 = base64Url(header);
+  const payloadBase64 = base64Url(payload);
+  const data = encoder.encode(`${headerBase64}.${payloadBase64}`);
+  
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', key, data);
+  const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+    
+  return `${headerBase64}.${payloadBase64}.${signatureBase64}`;
+}
+
+/**
+ * Verify a JWT-like token
+ */
+async function verifyJWT(token: string | null, env: Env): Promise<boolean> {
+  if (!token) return false;
+  
+  const secret = env.JWT_SECRET;
+  if (!secret) {
+    console.error('JWT_SECRET environment variable is not set');
+    return false;
+  }
+  
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    const [headerBase64, payloadBase64, signatureBase64] = parts;
+    const encoder = new TextEncoder();
+    
+    const data = encoder.encode(`${headerBase64}.${payloadBase64}`);
+    
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    
+    // Helper to decode Base64Url with padding restoration
+    const fromBase64Url = (base64url: string) => {
+      let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+      const pad = base64.length % 4;
+      if (pad) {
+        if (pad === 1) throw new Error('Invalid Base64Url string');
+        base64 += new Array(5 - pad).join('=');
+      }
+      return atob(base64);
+    };
+    
+    const sigString = fromBase64Url(signatureBase64);
+    const sigArray = new Uint8Array(
+      sigString.split('').map(c => c.charCodeAt(0))
+    );
+    
+    const isValid = await crypto.subtle.verify('HMAC', key, sigArray, data);
+    if (!isValid) return false;
+    
+    const payload = JSON.parse(fromBase64Url(payloadBase64));
+    const now = Math.floor(Date.now() / 1000);
+    
+    if (payload.exp && now > payload.exp) {
+      return false; // Token expired
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('JWT verification error:', error);
+    return false;
   }
 }

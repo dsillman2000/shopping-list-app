@@ -30,6 +30,7 @@ import {
 import { Plus, ArrowUpDown, Trash2, CheckCircle, Circle, CircleCheckBig, X } from 'lucide-react';
 import { ShoppingItem, ShoppingItemCDC } from '@/worker';
 import { API_CONFIG } from '../config/api-config';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 type SortDirection = 'none' | 'asc' | 'desc';
@@ -109,19 +110,25 @@ const applyBackendChanges = (items: ShoppingItem[], backendChanges: ShoppingItem
 };
 
 // Function to send CDC changes to the backend
-const sendChangesToBackend = async (changes: ShoppingItemCDC[]): Promise<number | null> => {
+const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | null): Promise<number | null> => {
   // Skip sending if there are no changes
   if (!changes || changes.length === 0) return null;
   
   try {
     console.log(`Sending ${changes.length} changes to backend`);
     
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     // Make the API call to post changes
     const response = await fetch(`${API_BASE_URL}/changes`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({ changes }),
     });
     
@@ -141,14 +148,21 @@ const sendChangesToBackend = async (changes: ShoppingItemCDC[]): Promise<number 
 };
 
 // Function to fetch changes from backend using real API
-const fetchChangesFromBackend = async (): Promise<{ changes: ShoppingItemCDC[], max_sequence: number }> => {
+const fetchChangesFromBackend = async (token: string | null): Promise<{ changes: ShoppingItemCDC[], max_sequence: number }> => {
   try {
     // Get the last sequence number we've seen
     const lastSequence = getLastSequenceNumber();
     console.log(`Fetching changes after sequence ${lastSequence}`);
     
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
     // Make the API call to get changes since our last known sequence
-    const response = await fetch(`${API_BASE_URL}/changes?after_sequence=${lastSequence}`);
+    const response = await fetch(`${API_BASE_URL}/changes?after_sequence=${lastSequence}`, {
+      headers
+    });
     
     if (!response.ok) {
       throw new Error(`API returned ${response.status}: ${response.statusText}`);
@@ -254,6 +268,7 @@ const addCdcChange = (changes: ShoppingItemCDC[], newChange: ShoppingItemCDC): S
 
 
 const ShoppingList: React.FC = () => {
+  const { token } = useAuth();
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [cdcChanges, setCdcChanges] = useState<ShoppingItemCDC[]>([]);
   const [newItem, setNewItem] = useState('');
@@ -298,7 +313,7 @@ const ShoppingList: React.FC = () => {
       }
       
       console.log('Polling for changes from backend...');
-      const response = await fetchChangesFromBackend();
+      const response = await fetchChangesFromBackend(token);
       
       // Update our last known sequence number if the server has a higher one
       if (response.max_sequence > lastSequenceNumber) {
@@ -380,7 +395,7 @@ const ShoppingList: React.FC = () => {
           console.log('Manual sync started with', cdcChanges.length, 'changes');
           
           // Send local changes to backend
-          const sequenceNumber = await sendChangesToBackend(cdcChanges);
+          const sequenceNumber = await sendChangesToBackend(cdcChanges, token);
           
           // If successful, update the last sequence number and clear CDC changes
           if (sequenceNumber !== null) {
@@ -545,7 +560,7 @@ const ShoppingList: React.FC = () => {
           console.log('Auto sync started with', cdcChanges.length, 'changes');
           
           // Send local changes to backend
-          const sequenceNumber = await sendChangesToBackend(cdcChanges);
+          const sequenceNumber = await sendChangesToBackend(cdcChanges, token);
           
           // If successful, update the last sequence number and clear CDC changes
           if (sequenceNumber !== null) {
