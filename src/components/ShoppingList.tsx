@@ -31,6 +31,7 @@ import { Plus, ArrowUpDown, Trash2, CheckCircle, Circle, CircleCheckBig, X } fro
 import { ShoppingItem, ShoppingItemCDC } from '@/worker';
 import { API_CONFIG } from '../config/api-config';
 import { useAuth } from '@/contexts/AuthContext';
+import { applyBackendChanges } from '@/lib/sync';
 
 
 type SortDirection = 'none' | 'asc' | 'desc';
@@ -68,98 +69,6 @@ const saveLastSequenceNumber = (sequenceNumber: number): void => {
 
 // API endpoint base URL from configuration
 const API_BASE_URL = API_CONFIG.BASE_URL;
-
-// Function to apply changes from backend to local state
-const applyBackendChanges = (items: ShoppingItem[], backendChanges: ShoppingItemCDC[]): ShoppingItem[] => {
-  if (!backendChanges || backendChanges.length === 0) return items;
-  
-  console.log(`Applying ${backendChanges.length} changes from backend to local state`);
-  
-  // Process each change from the backend
-  return backendChanges.reduce((updatedItems, change) => {
-    // For create operations or items that don't exist locally
-    const existingItemIndex = updatedItems.findIndex(item => item.id === change.id);
-    
-    if (existingItemIndex === -1) {
-      // This is a new item we don't have locally
-      if (change.change === 'create') {
-        // Only add if it's not deleted
-        if (!change.deleted_at) {
-          return [...updatedItems, {
-            id: change.id,
-            name: change.name,
-            completed: change.completed,
-            deleted_at: change.deleted_at,
-            updated_at: change.updated_at
-          }];
-        }
-      }
-      return updatedItems;
-    } else {
-      // Update existing item - Conflict Resolution Logic
-      return updatedItems.map(item => {
-        if (item.id === change.id) {
-          // Compare timestamps: Only update if backend change is newer than local state
-          const backendUpdatedAt = new Date(change.updated_at).getTime();
-          const localUpdatedAt = new Date(item.updated_at).getTime();
-          
-          if (backendUpdatedAt > localUpdatedAt) {
-            console.log(`Updating item ${item.id} with newer backend change`);
-            return { 
-              ...item, 
-              name: change.name, 
-              completed: change.completed,
-              deleted_at: change.deleted_at,
-              updated_at: change.updated_at
-            };
-          } else {
-            console.log(`Skipping backend change for item ${item.id} (local state is newer)`);
-            return item;
-          }
-        }
-        return item;
-      });
-    }
-  }, items);
-};
-
-// Function to send CDC changes to the backend
-const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | null): Promise<number | null> => {
-  // Skip sending if there are no changes
-  if (!changes || changes.length === 0) return null;
-  
-  try {
-    console.log(`Sending ${changes.length} changes to backend`);
-    
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
-    // Make the API call to post changes
-    const response = await fetch(`${API_BASE_URL}/changes`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ changes }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API returned ${response.status}: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    console.log('Changes sent successfully:', data);
-    
-    // Return the last sequence number from the response
-    return data.sequence_number || null;
-  } catch (error) {
-    console.error('Error sending changes to backend:', error);
-    return null;
-  }
-};
 
 // Function to fetch changes from backend using real API
 const fetchChangesFromBackend = async (token: string | null): Promise<{ changes: ShoppingItemCDC[], max_sequence: number }> => {
