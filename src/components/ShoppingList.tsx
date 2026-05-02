@@ -71,6 +71,43 @@ const saveLastSequenceNumber = (sequenceNumber: number): void => {
 const API_BASE_URL = API_CONFIG.BASE_URL;
 
 // Function to fetch changes from backend using real API
+const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | null): Promise<number | null> => {
+  // Skip sending if there are no changes
+  if (!changes || changes.length === 0) return null;
+  
+  try {
+    console.log(`Sending ${changes.length} changes to backend`);
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    // Make the API call to post changes
+    const response = await fetch(`${API_BASE_URL}/changes`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ changes }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API returned ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Changes sent successfully:', data);
+    
+    // Return the last sequence number from the response
+    return data.sequence_number || null;
+  } catch (error) {
+    console.error('Error sending changes to backend:', error);
+    return null;
+  }
+};
+
 const fetchChangesFromBackend = async (token: string | null): Promise<{ changes: ShoppingItemCDC[], max_sequence: number }> => {
   try {
     // Get the last sequence number we've seen
