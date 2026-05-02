@@ -6,7 +6,6 @@ on:
       - main
 
 env:
-  PNPM_VERSION: 10
   NODE_VERSION: '24'
 
 jobs:
@@ -28,7 +27,6 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: ${{ env.PNPM_VERSION }}
           run_install: false
 
       - name: Setup Node.js
