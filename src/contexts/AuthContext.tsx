@@ -3,6 +3,7 @@ import { API_CONFIG } from '@/config/api-config';
 
 // Local storage keys
 const PASSWORD_STORAGE_KEY = 'shopping-list-password';
+const TOKEN_STORAGE_KEY = 'shopping-list-token';
 const LOCKOUT_STORAGE_KEY = 'shopping-list-locked-until';
 
 // Rate limit response interface
@@ -16,6 +17,7 @@ interface RateLimitInfo {
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  token: string | null;
   error: string | null;
   rateLimitInfo: RateLimitInfo | null;
   login: (password: string) => Promise<boolean>;
@@ -26,6 +28,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   isLoading: true,
+  token: null,
   error: null,
   rateLimitInfo: null,
   login: async () => false,
@@ -40,12 +43,14 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rateLimitInfo, setRateLimitInfo] = useState<RateLimitInfo | null>(null);
 
   // Function to verify a password with the backend
   const verifyPassword = async (password: string): Promise<{
     valid: boolean;
+    token?: string;
     rateLimitInfo?: RateLimitInfo;
   }> => {
     try {
@@ -97,7 +102,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         };
       }
       
-      return { valid: data.valid === true };
+      return { 
+        valid: data.valid === true,
+        token: data.token
+      };
     } catch (error) {
       console.error('Error verifying password:', error);
       setError(error instanceof Error ? error.message : 'Unknown error occurred');
@@ -123,8 +131,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const result = await verifyPassword(password);
 
       if (result.valid) {
-        // Save password to localStorage if valid
+        // Save password and token to localStorage if valid
         localStorage.setItem(PASSWORD_STORAGE_KEY, password);
+        if (result.token) {
+          localStorage.setItem(TOKEN_STORAGE_KEY, result.token);
+          setToken(result.token);
+        }
         setIsAuthenticated(true);
         return true;
       } else {
@@ -154,6 +166,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Logout function
   const logout = () => {
     localStorage.removeItem(PASSWORD_STORAGE_KEY);
+    localStorage.removeItem(TOKEN_STORAGE_KEY);
+    setToken(null);
     setIsAuthenticated(false);
   };
   
@@ -206,9 +220,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         if (result.valid) {
           setIsAuthenticated(true);
+          if (result.token) {
+            localStorage.setItem(TOKEN_STORAGE_KEY, result.token);
+            setToken(result.token);
+          }
         } else {
           // If stored password is no longer valid, remove it
           localStorage.removeItem(PASSWORD_STORAGE_KEY);
+          localStorage.removeItem(TOKEN_STORAGE_KEY);
+          setToken(null);
           setIsAuthenticated(false);
           
           // If we got rate limited during background check, don't show error
@@ -233,6 +253,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const value = {
     isAuthenticated,
     isLoading,
+    token,
     error,
     rateLimitInfo,
     login,
