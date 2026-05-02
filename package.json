@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "dev:local:worker": "wrangler dev src/worker.ts",
+    "dev:local:worker": "wrangler dev src/worker.ts --var JWT_SECRET:my-dev-secret",
     "dev:remote:worker": "wrangler dev src/worker.ts --remote",
     "dev:local:seed-password": "wrangler d1 execute shopping_list_db --file=./sql/seed_dev_password.sql",
     "d1:local:rate-limit": "wrangler d1 execute shopping_list_db --file=./sql/create_rate_limit_table.sql --local",
