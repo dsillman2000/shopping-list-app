@@ -12,6 +12,7 @@ CREATE TABLE shopping_items_cdc (
   name TEXT NOT NULL,
   completed BOOLEAN NOT NULL DEFAULT 0,
   deleted_at TEXT,
+  updated_at TEXT,
   timestamp TEXT DEFAULT (datetime('now'))
 );
 
