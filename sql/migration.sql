@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS login_attempts;
 CREATE TABLE shopping_items_cdc (
   sequence_number INTEGER PRIMARY KEY AUTOINCREMENT,
   id TEXT NOT NULL,
-  change TEXT NOT NULL CHECK (change IN ('create', 'update')),
+  change TEXT NOT NULL CHECK (change IN ('create', 'update', 'compact')),
   name TEXT NOT NULL,
   completed BOOLEAN NOT NULL DEFAULT 0,
   deleted_at TEXT,
