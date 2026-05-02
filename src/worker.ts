@@ -16,6 +16,7 @@ export interface ShoppingItem {
   name: string;
   completed: boolean;
   deleted_at: string | null;
+  updated_at: string;
 }
 
 export interface ShoppingItemCDC extends ShoppingItem {
@@ -132,6 +133,7 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
         name: string;
         completed: boolean;
         deleted_at: string | null;
+        updated_at: string;
       }>
     };
     
@@ -152,14 +154,15 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
       batch.push(
         env.DB.prepare(
           `INSERT INTO shopping_items_cdc 
-           (id, change, name, completed, deleted_at) 
-           VALUES (?, ?, ?, ?, ?)`
+           (id, change, name, completed, deleted_at, updated_at) 
+           VALUES (?, ?, ?, ?, ?, ?)`
         ).bind(
           change.id,
           change.change,
           change.name,
           change.completed ? 1 : 0,
-          change.deleted_at
+          change.deleted_at,
+          change.updated_at
         )
       );
     }

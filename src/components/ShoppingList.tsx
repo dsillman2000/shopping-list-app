@@ -89,22 +89,36 @@ const applyBackendChanges = (items: ShoppingItem[], backendChanges: ShoppingItem
             id: change.id,
             name: change.name,
             completed: change.completed,
-            deleted_at: change.deleted_at
+            deleted_at: change.deleted_at,
+            updated_at: change.updated_at
           }];
         }
       }
       return updatedItems;
     } else {
-      // Update existing item
-      return updatedItems.map(item => 
-        item.id === change.id 
-          ? { ...item, 
+      // Update existing item - Conflict Resolution Logic
+      return updatedItems.map(item => {
+        if (item.id === change.id) {
+          // Compare timestamps: Only update if backend change is newer than local state
+          const backendUpdatedAt = new Date(change.updated_at).getTime();
+          const localUpdatedAt = new Date(item.updated_at).getTime();
+          
+          if (backendUpdatedAt > localUpdatedAt) {
+            console.log(`Updating item ${item.id} with newer backend change`);
+            return { 
+              ...item, 
               name: change.name, 
               completed: change.completed,
-              deleted_at: change.deleted_at 
-            }
-          : item
-      );
+              deleted_at: change.deleted_at,
+              updated_at: change.updated_at
+            };
+          } else {
+            console.log(`Skipping backend change for item ${item.id} (local state is newer)`);
+            return item;
+          }
+        }
+        return item;
+      });
     }
   }, items);
 };
@@ -618,6 +632,7 @@ const ShoppingList: React.FC = () => {
         name,
         completed: false,
         deleted_at: null,
+        updated_at: new Date().toISOString(),
       };
       
       // Create the CDC change record
@@ -626,7 +641,8 @@ const ShoppingList: React.FC = () => {
         change: 'create',
         name,
         completed: false,
-        deleted_at: null
+        deleted_at: null,
+        updated_at: newItemObj.updated_at
       };
       
       // Update both states
@@ -642,7 +658,11 @@ const ShoppingList: React.FC = () => {
     setItems(prevItems => {
       const updatedItems = prevItems.map(item => {
         if (item.id === id) {
-          const updatedItem = { ...item, completed: !item.completed };
+          const updatedItem = { 
+            ...item, 
+            completed: !item.completed,
+            updated_at: new Date().toISOString()
+          };
           
           // Create a CDC change record
           const cdcChange: ShoppingItemCDC = {
@@ -667,7 +687,11 @@ const ShoppingList: React.FC = () => {
     setItems(prevItems => {
       const updatedItems = prevItems.map(item => {
         if (item.id === id) {
-          const updatedItem = { ...item, deleted_at: new Date().toISOString() };
+          const updatedItem = { 
+            ...item, 
+            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
           
           // Create a CDC change record for the deletion (as an update with deleted_at set)
           const cdcChange: ShoppingItemCDC = {
@@ -720,7 +744,11 @@ const ShoppingList: React.FC = () => {
       setItems(prevItems => {
         const updatedItems = prevItems.map(item => {
           if (item.id === editingItemId) {
-            const updatedItem = { ...item, name: editingName.trim() };
+            const updatedItem = { 
+              ...item, 
+              name: editingName.trim(),
+              updated_at: new Date().toISOString()
+            };
             
             // Create a CDC change record
             const cdcChange: ShoppingItemCDC = {
