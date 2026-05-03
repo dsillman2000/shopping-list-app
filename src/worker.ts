@@ -180,10 +180,27 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
         lastSequenceNumber = results[0].max_seq as number;
       }
     }
+
+    // RESOLVE RACE CONDITION: Return any changes the client might have missed 
+    // between their last sync and this write.
+    // This allows the client to "catch up" to the state of the DB at the time of their write.
+    const lastClientSeqStr = url.searchParams.get('after_sequence');
+    const lastClientSeq = lastClientSeqStr ? parseInt(lastClientSeqStr, 10) : 0;
+    
+    let missedChanges: any[] = [];
+    if (lastClientSeq < lastSequenceNumber) {
+      const { results } = await env.DB.prepare(`
+        SELECT * FROM shopping_items_cdc 
+        WHERE sequence_number > ? AND sequence_number <= ?
+        ORDER BY sequence_number ASC
+      `).bind(lastClientSeq, lastSequenceNumber).all();
+      missedChanges = results || [];
+    }
     
     return corsResponse({ 
       message: 'Changes recorded successfully',
-      sequence_number: lastSequenceNumber 
+      sequence_number: lastSequenceNumber,
+      changes: missedChanges // Client should apply these immediately
     }, 200, request);
   } catch (error) {
     console.error('Error inserting changes:', error);

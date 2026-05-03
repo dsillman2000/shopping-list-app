@@ -71,7 +71,7 @@ const saveLastSequenceNumber = (sequenceNumber: number): void => {
 const API_BASE_URL = API_CONFIG.BASE_URL;
 
 // Function to fetch changes from backend using real API
-const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | null): Promise<number | null> => {
+const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | null, lastSequence: number): Promise<{ sequence_number: number, missed_changes: ShoppingItemCDC[] } | null> => {
   // Skip sending if there are no changes
   if (!changes || changes.length === 0) return null;
   
@@ -87,7 +87,8 @@ const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | 
     }
     
     // Make the API call to post changes
-    const response = await fetch(`${API_BASE_URL}/changes`, {
+    // Pass after_sequence so the backend can return what we missed in the meantime
+    const response = await fetch(`${API_BASE_URL}/changes?after_sequence=${lastSequence}`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ changes }),
@@ -100,8 +101,11 @@ const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | 
     const data = await response.json();
     console.log('Changes sent successfully:', data);
     
-    // Return the last sequence number from the response
-    return data.sequence_number || null;
+    // Return the last sequence number and any missed changes from the response
+    return {
+      sequence_number: data.sequence_number,
+      missed_changes: data.changes || []
+    };
   } catch (error) {
     console.error('Error sending changes to backend:', error);
     return null;
@@ -355,15 +359,23 @@ const ShoppingList: React.FC = () => {
           console.log('Manual sync started with', cdcChanges.length, 'changes');
           
           // Send local changes to backend
-          const sequenceNumber = await sendChangesToBackend(cdcChanges, token);
+          const syncResult = await sendChangesToBackend(cdcChanges, token, lastSequenceNumber);
           
           // If successful, update the last sequence number and clear CDC changes
-          if (sequenceNumber !== null) {
-            console.log('Manual sync completed, last sequence:', sequenceNumber);
-            saveLastSequenceNumber(sequenceNumber);
-            setLastSequenceNumber(sequenceNumber);
+          if (syncResult !== null) {
+            const { sequence_number, missed_changes } = syncResult;
+            console.log('Manual sync completed, last sequence:', sequence_number);
+            
+            saveLastSequenceNumber(sequence_number);
+            setLastSequenceNumber(sequence_number);
             setCdcChanges([]);
             clearDeletedItems();
+
+            // Apply any missed changes returned by the backend to catch up
+            if (missed_changes.length > 0) {
+              console.log('Applying missed changes from sync response:', missed_changes);
+              setItems(prevItems => applyBackendChanges(prevItems, missed_changes));
+            }
           } else {
             console.warn('Sync failed, keeping CDC changes for retry');
           }
@@ -520,15 +532,23 @@ const ShoppingList: React.FC = () => {
           console.log('Auto sync started with', cdcChanges.length, 'changes');
           
           // Send local changes to backend
-          const sequenceNumber = await sendChangesToBackend(cdcChanges, token);
+          const syncResult = await sendChangesToBackend(cdcChanges, token, lastSequenceNumber);
           
           // If successful, update the last sequence number and clear CDC changes
-          if (sequenceNumber !== null) {
-            console.log('Auto sync completed, last sequence:', sequenceNumber);
-            saveLastSequenceNumber(sequenceNumber);
-            setLastSequenceNumber(sequenceNumber);
+          if (syncResult !== null) {
+            const { sequence_number, missed_changes } = syncResult;
+            console.log('Auto sync completed, last sequence:', sequence_number);
+            
+            saveLastSequenceNumber(sequence_number);
+            setLastSequenceNumber(sequence_number);
             setCdcChanges([]);
             clearDeletedItems();
+
+            // Apply any missed changes returned by the backend to catch up
+            if (missed_changes.length > 0) {
+              console.log('Applying missed changes from auto-sync response:', missed_changes);
+              setItems(prevItems => applyBackendChanges(prevItems, missed_changes));
+            }
           } else {
             console.warn('Auto sync failed, keeping CDC changes for retry');
           }
