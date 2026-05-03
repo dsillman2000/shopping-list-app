@@ -133,6 +133,7 @@ async function getChanges(env: Env, afterSequence: number = 0, request?: Request
  * @param env - Environment with D1 database
  */
 async function insertChanges(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
   try {
     // Parse the request body
     const bodyText = await request.clone().text();
