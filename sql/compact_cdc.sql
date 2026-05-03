@@ -2,9 +2,6 @@
 -- This script reduces the size of the CDC log by keeping only the latest state for each item
 -- and inserting a 'compact' record to signal clients to reset their local storage.
 
--- Wrap in a transaction to ensure atomicity
-BEGIN TRANSACTION;
-
 -- 1. Create a temporary table to store the latest state of all non-deleted items
 -- We exclude 'compaction-signal' to prevent it from being re-inserted as a 'create' record.
 CREATE TEMP TABLE latest_states AS
@@ -34,5 +31,3 @@ FROM latest_states;
 
 -- 5. Cleanup
 DROP TABLE latest_states;
-
-COMMIT;
