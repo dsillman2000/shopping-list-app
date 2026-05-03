@@ -15,6 +15,12 @@ export const applyBackendChanges = (items: ShoppingItem[], backendChanges: Shopp
   
   // Process each change from the backend
   return backendChanges.reduce((updatedItems, change) => {
+    // Handle compaction record: Clear local state
+    if (change.change === 'compact') {
+      console.log('Compaction record received. Clearing local state.');
+      return [];
+    }
+
     // For create operations or items that don't exist locally
     const existingItemIndex = updatedItems.findIndex(item => item.id === change.id);
     
