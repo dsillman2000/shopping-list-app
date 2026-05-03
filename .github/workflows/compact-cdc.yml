@@ -2,8 +2,6 @@ name: Compact CDC Table
 
 on:
   workflow_dispatch: # Allow manual triggering
-  schedule:
-    - cron: '0 0 * * 0' # Run every Sunday at midnight
 
 jobs:
   compact:
