@@ -88,7 +88,10 @@ const sendChangesToBackend = async (changes: ShoppingItemCDC[], token: string | 
     
     // Make the API call to post changes
     // Pass after_sequence so the backend can return what we missed in the meantime
-    const response = await fetch(`${API_BASE_URL}/changes?after_sequence=${lastSequence}`, {
+    const url = new URL(`${API_BASE_URL}/changes`, window.location.origin);
+    url.searchParams.append('after_sequence', lastSequence.toString());
+    
+    const response = await fetch(url.toString(), {
       method: 'POST',
       headers,
       body: JSON.stringify({ changes }),
