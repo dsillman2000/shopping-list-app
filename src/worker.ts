@@ -161,7 +161,7 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
           change.change,
           change.name,
           change.completed ? 1 : 0,
-          change.deleted_at,
+          change.deleted_at || null, // Fix: Ensure null if undefined
           change.updated_at
         )
       );
