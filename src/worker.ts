@@ -146,8 +146,8 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
     
     for (const change of payload.changes) {
       // Validate each change
-      if (!change.id || !change.change || typeof change.name !== 'string') {
-        return corsResponse({ error: 'Invalid change format' }, 400);
+      if (!change.id || !change.change || (change.change !== 'compact' && typeof change.name !== 'string')) {
+        return corsResponse({ error: 'Invalid change format', details: `Missing fields in change for ${change.id}` }, 400);
       }
       
       // Insert the change into the CDC table
@@ -159,9 +159,9 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
         ).bind(
           change.id,
           change.change,
-          change.name,
+          change.name || '', // Ensure name is at least an empty string
           change.completed ? 1 : 0,
-          change.deleted_at || null, // Fix: Ensure null if undefined
+          change.deleted_at || null,
           change.updated_at
         )
       );
