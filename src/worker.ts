@@ -60,7 +60,16 @@ export default {
       } 
       // Insert new changes
       else if (request.method === 'POST') {
-        return await insertChanges(request, env);
+        try {
+          return await insertChanges(request, env);
+        } catch (postError) {
+          console.error('CRITICAL POST ERROR:', postError);
+          return corsResponse({ 
+            error: 'Internal Server Error during POST', 
+            details: String(postError),
+            stack: postError instanceof Error ? postError.stack : undefined
+          }, 500, request);
+        }
       }
     }
 
@@ -126,7 +135,10 @@ async function getChanges(env: Env, afterSequence: number = 0, request?: Request
 async function insertChanges(request: Request, env: Env): Promise<Response> {
   try {
     // Parse the request body
-    const payload = await request.json() as {
+    const bodyText = await request.clone().text();
+    console.log('Raw POST body:', bodyText);
+
+    const payload = JSON.parse(bodyText) as {
       changes: Array<{
         id: string;
         change: 'create' | 'update' | 'compact';
@@ -138,7 +150,7 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
     };
     
     if (!payload.changes || !Array.isArray(payload.changes)) {
-      return corsResponse({ error: 'Invalid request format' }, 400);
+      return corsResponse({ error: 'Invalid request format', details: 'Payload must contain a changes array' }, 400, request);
     }
     
     const batch = [];
