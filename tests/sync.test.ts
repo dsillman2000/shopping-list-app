@@ -59,3 +59,113 @@ describe('Conflict Resolution (Concurrency)', () => {
     expect(result[0].id).toBe('2');
   });
 });
+
+describe('Compaction', () => {
+  const existingItems: ShoppingItem[] = [
+    {
+      id: '1',
+      name: 'Milk',
+      completed: false,
+      deleted_at: null,
+      updated_at: '2026-05-01T10:00:00.000Z',
+    },
+    {
+      id: '2',
+      name: 'Bread',
+      completed: true,
+      deleted_at: null,
+      updated_at: '2026-05-01T09:00:00.000Z',
+    },
+  ];
+
+  it('should clear local state when compact change is received', () => {
+    const compactChange: ShoppingItemCDC = {
+      id: 'compact',
+      name: '',
+      completed: false,
+      deleted_at: null,
+      change: 'compact',
+      updated_at: '2026-05-01T12:00:00.000Z',
+    };
+
+    const result = applyBackendChanges(existingItems, [compactChange]);
+    expect(result).toHaveLength(0);
+  });
+
+  it('should rebuild local state deterministically after compact followed by creates', () => {
+    const changes: ShoppingItemCDC[] = [
+      {
+        id: 'compact',
+        name: '',
+        completed: false,
+        deleted_at: null,
+        change: 'compact',
+        updated_at: '2026-05-01T12:00:00.000Z',
+      },
+      {
+        id: '1',
+        name: 'Milk',
+        completed: false,
+        deleted_at: null,
+        change: 'create',
+        updated_at: '2026-05-01T12:00:01.000Z',
+      },
+      {
+        id: '2',
+        name: 'Eggs',
+        completed: false,
+        deleted_at: null,
+        change: 'create',
+        updated_at: '2026-05-01T12:00:02.000Z',
+      },
+      {
+        id: '3',
+        name: 'Butter',
+        completed: true,
+        deleted_at: null,
+        change: 'create',
+        updated_at: '2026-05-01T12:00:03.000Z',
+      },
+    ];
+
+    const result = applyBackendChanges(existingItems, changes);
+
+    expect(result).toHaveLength(3);
+    expect(result.map(item => item.id)).toEqual(['1', '2', '3']);
+    expect(result.map(item => item.name)).toEqual(['Milk', 'Eggs', 'Butter']);
+    expect(result.find(item => item.id === '3')?.completed).toBe(true);
+  });
+
+  it('should not add deleted items after compact', () => {
+    const changes: ShoppingItemCDC[] = [
+      {
+        id: 'compact',
+        name: '',
+        completed: false,
+        deleted_at: null,
+        change: 'compact',
+        updated_at: '2026-05-01T12:00:00.000Z',
+      },
+      {
+        id: '1',
+        name: 'Milk',
+        completed: false,
+        deleted_at: '2026-05-01T11:00:00.000Z',
+        change: 'create',
+        updated_at: '2026-05-01T12:00:01.000Z',
+      },
+      {
+        id: '2',
+        name: 'Bread',
+        completed: false,
+        deleted_at: null,
+        change: 'create',
+        updated_at: '2026-05-01T12:00:02.000Z',
+      },
+    ];
+
+    const result = applyBackendChanges(existingItems, changes);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('2');
+  });
+});

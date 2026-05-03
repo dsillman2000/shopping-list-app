@@ -11,12 +11,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Wrangler
-        run: npm install -g wrangler
-
       - name: Run Compaction Script
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          wrangler d1 execute shopping_list_db --remote --file=./sql/compact_cdc.sql
+          npx wrangler@4.45.0 d1 execute shopping_list_db --remote --file=./sql/compact_cdc.sql

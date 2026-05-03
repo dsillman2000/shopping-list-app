@@ -21,7 +21,7 @@ export interface ShoppingItem {
 
 export interface ShoppingItemCDC extends ShoppingItem {
   sequence_number?: number;
-  change: 'create' | 'update';
+  change: 'create' | 'update' | 'compact';
 }
 
 export default {
@@ -129,7 +129,7 @@ async function insertChanges(request: Request, env: Env): Promise<Response> {
     const payload = await request.json() as {
       changes: Array<{
         id: string;
-        change: 'create' | 'update';
+        change: 'create' | 'update' | 'compact';
         name: string;
         completed: boolean;
         deleted_at: string | null;
